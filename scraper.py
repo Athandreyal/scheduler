@@ -13,7 +13,6 @@ except:
 
 
 indent=0
-verbose=False
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36',
@@ -96,8 +95,7 @@ class FACULTY:
         self.research=research
     
 def save_objs(path,obj):
-    if verbose:
-        print('saving to path',path)
+    print('saving obj for',path)
     folder = os.path.dirname(path)
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -121,9 +119,6 @@ def strip_tags(s):
     return result
 
 def getTables(tables,short):
-    if verbose:
-        print('\t\tgetting',short,'information')
-#    classes_in_dept = [(n[1:-1] if len(n)==5 else n) for n in re.findall('[A-Z]{3,4}.([0-9]{3})*',tables[0])+re.findall('(>[0-9]{3}<)*',tables[0]) if n] #gets the class numbers...not necessary?
     pattern  = re.compile(r"<span|</span>")
     classes = {}
     for table in tables:  #for each class on page
@@ -139,14 +134,11 @@ def getTables(tables,short):
                 else:
                     class_info[line[0]] = line[1]
             classes[code[1]] = CLASS(class_info,code,short)            
-    if verbose:                   
-        print('\t\tfinished getting',short,'information')
     return classes
         
 
 #gets calendar class tables, loads file if exists, tests loaded obj, removes erroneous file and resets on failure
 def getTableFile(path,short):
-#    print('\t\tinit',short)
     global departments_calendar_class_tables_load_fail
     global repeat
     loaded = False
@@ -158,7 +150,6 @@ def getTableFile(path,short):
         table=None
     if loaded:
         departments_calendar_class_tables_load_fail = False
-#        print('\t\tinit',short,'complete')
         return table
     else:
         html = table
@@ -180,59 +171,15 @@ def getTableFile(path,short):
             departments_calendar_class_tables_load_fail = True
             table = getTableFile(path, short)
         
-#    if os.path.exists(calendar_path_root+path):
-#        print('\t%s exists, loading from file'%(calendar_path_root+path))
-#        with open(calendar_path_root+path) as f:
-#            table = jsonpickle.decode(f.read())
-#    else:
-#        try:
-#            html = requests.get(ucalgary_root+calendar_path_root+path,headers=headers).text
-#        except Exception as e:
-#            print(e)
-#            html=None
-#            table=None
-#        if html is not None:
-#            table = getTables(html.split('<table cellpadding')[1:],short)
-#            save_objs(calendar_path_root+path,table)
-#        else:
-#            if type(table) == type({}):
-#                print(table,'from',ucalgary_root+calendar_path_root+path)
-#            else:
-#                print(type(table),table)
-#            if repeat == 3:
-#                return None
-#            repeat = repeat + 1
-#            try:
-#                os.remove(calendar_path_root+path)
-#            except:
-#                pass
-#            departments_calendar_class_tables_load_fail = True
-#            table = getTableFile(path, short)
-#    departments_calendar_class_tables_load_fail = False
-#    print('\t\tinit',short,'complete')
-#    return table
-
 #gets calendar department links, loads file if exists, tests loaded obj, removes erroneous file and resets on failure
 def parse_depts(departments_path):
     global departments_calendar_load_fail
-    if verbose:
-        print('init departments')
     loaded,faculties = load_or_scrape(ucalgary_root,departments_path)
     if loaded:
         departments_calendar_load_fail = False
-        if verbose:
-            print('\tinit department links complete')
         return faculties
     else:
-#    if os.path.exists(departments_path):
-#        print('\tdepartment links exists, loading from file')
-#        with open(departments_path) as f:
-#            departments = json.load(f)
-#    else:
-#        print('\tscraping department links')
-#        lines = requests.get(ucalgary_root+departments_path,headers=headers).iter_lines()
         departments={}
-#        lines = faculties.iter_lines()
         lines = faculties.split('\n')
         for line in lines:
             line=str(line)
@@ -285,28 +232,29 @@ def load_or_scrape(root,path):
     global html_request
     raw = 'raw_html/'
     if os.path.exists(path):
-        if verbose:
-            print('\t%s exists, loading from file'%path)
         with open(path) as f:
-            if verbose:
-                print('loading',path)
             html_request = False
+            print('using local obj file')
+            input()
             return True, jsonpickle.decode(json.load(f))
     else:
         if os.path.exists(raw+path):
-            if verbose:
-                print('\tloading %s from file' % path)
             #can get html locally
             with open(raw+path) as f:
+                print('using local html',raw+path)
+                input()
+                print('returning now')
                 return False, f.read()
-        if verbose:
-            print('\tscraping',root+path)
         html_request = True
+        
         folder = os.path.dirname(raw+path)
+        
         if not os.path.exists(folder):
             os.makedirs(folder)
         
         lines = requests.get(root+path,headers=headers).iter_lines()
+        print('usng remote html')
+        input()
         with open(raw+path,'w') as f:
             for line in lines:
                 f.write(str(line))
@@ -315,14 +263,14 @@ def load_or_scrape(root,path):
 
 #will have faculties,with sub-departments, classes schedules, locations, and professors by end of this function
 def parse_faculties():
-    if verbose:
-        print('init',contacts_root+faculties_path)
     global repeat
     global contacts_departments_load_fail
     #if exist, open, else scrape
     loaded,faculties = load_or_scrape(contacts_root,faculties_path)
     if loaded:
+        print('returning faculties obj')
         return faculties
+    print('building new faculties obj')
 #    else we scraped, we have parsing to do.
     html = ''.join([str(s) for s in faculties])
 
@@ -384,7 +332,7 @@ def parse_faculties():
 
         faculties[faculty] = divided
         #Arts Exists
-    if type(faculties) == type({}) and 'Arts' in faculties:#expand to a thorough test
+    if type(faculties) == type({}) and 'arts' in faculties:#expand to a thorough test
         save_objs(faculties_path,faculties)
     else:
         if repeat == 3:
@@ -396,15 +344,18 @@ def parse_faculties():
     contacts_classes_load_fail = False
     print('finished',faculties_path)
     return faculties
+
+#def parse_schedule_table(html):
+    
+
     
 def parse_schedules(short):
-    global verbose
-    if verbose:
-        print('init class schedule',class_day_time_path % short)
-    global repeat
-    global contacts_classes_load_fail
     
 #    if exist, open, else scrape
+    try:
+        os.remove(class_day_time_path % short)
+    except:
+        pass
     loaded,classes = load_or_scrape(contacts_root,class_day_time_path % short)
     if loaded:
         return classes
@@ -416,8 +367,18 @@ def parse_schedules(short):
         print('404 - Page Not Found')
         return
     html = ''.join(html)
+    departments = html.split('unitis-courses-heading')[1:]
+    department = {}
+    for dept in departments:
+        dept = dept[1:] #trim the tag we broke
+        dept_short = re.search('[A-Z]{3,4}',re.search('[A-Z]{3,4} [0-9]{3}',dept).group()).group()
+        department[dept_short] = slice_course_table(dept_short,dept)
+    return department
 
-    indices = [i.span()[0] for i in re.finditer(short.upper()+'.[0-9]{3}',html)]
+def slice_course_table(short,html):
+    global repeat
+    global contacts_classes_load_fail
+    indices = [i.span()[0] for i in re.finditer('[A-Z]{3,4} [0-9]{3}',html)]
     indices.insert(0,0)
     classes = {}
     for info in [html[indices[i]:indices[i+1]] for i in range(len(indices)-1)][1:]:
@@ -425,7 +386,7 @@ def parse_schedules(short):
         num,info = info.split(' ',1)[0],(info.split(' ',1)[1])[2:]
         name,info = info[:info.find('<')],info[info.find('<'):]
         info = info.replace('>SEM','>SEM_SEM').replace('>LEC ','>LEC_LEC ').replace('>TUT ','>TUT_TUT ').replace('>LAB ','>LAB_LAB ').replace('>Notes:','>NOTES_Notes:').replace('>Details<','>DETAILS_Details<')
-        info = info.replace('\\xc2\\xa0',' ').replace('&nbsp;',' ').replace('>TBA','> TBA').replace('&#x0A','')
+        info = info.replace('\t',' ').replace('\\xc2\\xa0',' ').replace('&nbsp;',' ').replace('>TBA','> TBA').replace('&#x0A','')
         details = re.split('SEM_|LEC_|TUT_|LAB_|NOTES_|DETAILS_|<br />',info)
         CLS=[]
         RMS=[]
@@ -463,8 +424,15 @@ def parse_schedules(short):
             this['prof'] = x[2]
         classes[num]={'num':num,'name':name,'short':short,'details':this}
     if type(classes) == type({}) and len(classes.keys()) > 0:
+        print('saving object for',class_day_time_path % short)
         save_objs(class_day_time_path % short,classes)
+        contacts_classes_load_fail = False
     else:
+        print('not saving object for',class_day_time_path % short)
+        try:
+            print('\t',type(classes),len(classes.keys()),classes.keys())
+        except:
+            print('\t',type(classes))
         if repeat == 3:
             return None
         repeat = repeat + 1
@@ -472,9 +440,6 @@ def parse_schedules(short):
             os.remove(class_day_time_path % short)
         contacts_classes_load_fail = True
         classes = parse_schedules(short)
-    contacts_classes_load_fail = False
-    if verbose:
-        print('finished init class',class_day_time_path % short)
     return classes
 
         
@@ -482,8 +447,6 @@ def parse_schedules(short):
 def scrape_department_and_class_reqs():
     departments = parse_depts(departments_path)
     full_class_info = {}
-    if verbose:
-        print('init class listings')
     finished_departments = False
     delayed=False
     while not finished_departments:
@@ -501,13 +464,11 @@ def scrape_department_and_class_reqs():
             if html_request:
                 delay(random.randint(1,5))
         finished_departments = not(departments_calendar_load_fail or departments_calendar_class_tables_load_fail)
-    if verbose:
-        print('init class listings complete')
     return full_class_info
 
 def scrape_faculties_and_class_schedules(depts):
     faculties = parse_faculties()
-    for short in depts.keys():
+    for short in faculties.keys():
         schedules = parse_schedules(short.lower())
 
 def get_everything():
@@ -516,5 +477,10 @@ def get_everything():
     print('getting class schedules')
     scrape_faculties_and_class_schedules(departments)
     print('data scrape/load completed')
+    for dept in departments.keys():
+#        print(dept)
+        print('\t',departments[dept].keys())
 
-get_everything()
+#get_everything()
+
+print(parse_schedules('cpsc').keys())
