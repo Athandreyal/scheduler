@@ -383,36 +383,35 @@ def parse_faculties():
     return faculties
     
 def parse_schedules(short):
+    global verbose
     if verbose:
         print('init class schedule',class_day_time_path % short)
     global repeat
     global contacts_classes_load_fail
+    
 #    if exist, open, else scrape
-    loaded,html = load_or_scrape(contacts_root,class_day_time_path % short)
+    loaded,classes = load_or_scrape(contacts_root,class_day_time_path % short)
     if loaded:
-        return faculties
+        return classes
 #    else we scraped, we have parsing to do.
-#    html = ''.join([str(s) for s in html])
 
-#    html = open('cpsc').read()
+    html = ''.join(classes[2:].replace("'b'",'\n'))
+
     if '404 - Page Not Found' in html:
         print('404 - Page Not Found')
         return
     html = ''.join(html)
-    
-    indices = [i.span()[0] for i in re.finditer(short+'.[0-9]{3}',html)]
-    indices.insert(0,0)
 
+    indices = [i.span()[0] for i in re.finditer(short.upper()+'.[0-9]{3}',html)]
+    indices.insert(0,0)
     classes = {}
     for info in [html[indices[i]:indices[i+1]] for i in range(len(indices)-1)][1:]:
         short,info = info.split(' ',1)[0],info.split(' ',1)[1]
         num,info = info.split(' ',1)[0],(info.split(' ',1)[1])[2:]
         name,info = info[:info.find('<')],info[info.find('<'):]
-
-        info = info.replace('>LEC ','>LEC_LEC ').replace('>TUT ','>TUT_TUT ').replace('>LAB ','>LAB_LAB ').replace('>Notes:','>NOTES_Notes:').replace('>Details<','>DETAILS_Details<')
-        info = info.replace('&nbsp;',' ').replace('>TBA','> TBA').replace('&#x0A','')
-        details = re.split('LEC_|TUT_|LAB_|NOTES_|DETAILS_|<br />',info)
-
+        info = info.replace('>SEM','>SEM_SEM').replace('>LEC ','>LEC_LEC ').replace('>TUT ','>TUT_TUT ').replace('>LAB ','>LAB_LAB ').replace('>Notes:','>NOTES_Notes:').replace('>Details<','>DETAILS_Details<')
+        info = info.replace('\\xc2\\xa0',' ').replace('&nbsp;',' ').replace('>TBA','> TBA').replace('&#x0A','')
+        details = re.split('SEM_|LEC_|TUT_|LAB_|NOTES_|DETAILS_|<br />',info)
         CLS=[]
         RMS=[]
         PRF=[]
@@ -424,7 +423,7 @@ def parse_schedules(short):
             match=re.search('[0-9]{2}:[0-9]{2} - [0-9]{2}:[0-9]{2}',s)
             if match or 'TBA' in s:
                 s = s.split(' ',2)
-                if 'LEC' in s or 'TUT' in s or 'LAB' in s:
+                if 'SEM' in s or 'LEC' in s or 'TUT' in s or 'LAB' in s:
                     CLS.append(s)
             elif 'map/interactive' in d:
                 RMS.append(s)
@@ -438,25 +437,29 @@ def parse_schedules(short):
         c = zip(CLS,RMS,PRF)
         for x in c:
             this['type'] = x[0][0]
-            this['p_num'] = re.match('[0-9]{1,2}',x[0][1]).group(0)
-            this['day']  = re.search('([A-Z]+)',x[0][1]).group(0)
+            p_num = re.match('[0-9]{1,2}',x[0][1])
+            day = re.search('([A-Z]+)',x[0][1])
+            if p_num is not None:
+                this['p_num'] = p_num.group(0)
+            if day is not None:
+                this['day']  = day.group(0)
             this['time'] = x[0][2]
             this['room'] = x[1]
             this['prof'] = x[2]
         classes[num]={'num':num,'name':name,'short':short,'details':this}
-        
-        if type(classes) == type({}) and len(classes.keys()) > 0:
-            save_objs(class_day_time_path % short,classes)
-        else:
-            if repeat == 3:
-                return None
-            repeat = repeat + 1
+    if type(classes) == type({}) and len(classes.keys()) > 0:
+        save_objs(class_day_time_path % short,classes)
+    else:
+        if repeat == 3:
+            return None
+        repeat = repeat + 1
+        if os.path.exists(class_day_time_path % short):
             os.remove(class_day_time_path % short)
-            contacts_classes_load_fail = True
-            classes = parse_schedules(short)
+        contacts_classes_load_fail = True
+        classes = parse_schedules(short)
     contacts_classes_load_fail = False
     if verbose:
-        print('finished init class',path)
+        print('finished init class',class_day_time_path % short)
     return classes
 
         
@@ -470,7 +473,6 @@ def scrape_department_and_class_reqs():
     delayed=False
     while not finished_departments:
         for d in departments.keys():
-#            print('\tget %s'%d)
             repeat = 0   #reset the repeat trigger
             full_class_info[d] = DEPT(d,departments[d]['title'],getTableFile(departments[d]['link'],d))
             if repeat == 3:  #probably got myself banned, parsing errors are likely to crash out the script
@@ -484,36 +486,20 @@ def scrape_department_and_class_reqs():
             if html_request:
                 delay(random.randint(1,5))
         finished_departments = not(departments_calendar_load_fail or departments_calendar_class_tables_load_fail)
-#        if not finished_departments:
-#            print(departments_calendar_load_fail,departments_calendar_class_tables_load_fail,finished_departments)
-#            if delayed:
-#                increase_delays()
-#                delayed=False
-#            delay('reject')
-#            delayed=True
     if verbose:
         print('init class listings complete')
     return full_class_info
 
 def scrape_faculties_and_class_schedules(depts):
     faculties = parse_faculties()
-#    for key in faculties.keys():
-#        print(key)
-#        for key2 in faculties[key].keys():
-#            print('\t\t',key2)
-#            for field in faculties[key][key2]:
-#                print('\t\t\t',field)
     for short in depts.keys():
-        print (short)
-        print(parse_schedules(short.lower()))
+        schedules = parse_schedules(short.lower())
 
 def get_everything():
     print('getting class requisites')
     departments = scrape_department_and_class_reqs()
     print('getting class schedules')
     scrape_faculties_and_class_schedules(departments)
-
-#print(parse_faculties())
-#print(parse_schedules('CPSC'))
+    print('data scrape/load completed')
 
 get_everything()
