@@ -553,4 +553,106 @@ def get_everything():
                                 last_class = found[key].IDS[i]
 #    print('contains information on',schedule_count,'separate schedule items')
     print(dept_count,'departments,',class_count,'classes,',schedule_count,'schedule items')
+    
 get_everything()
+
+#################################
+#                               #
+#     Concentration Details     #
+#                               #
+#################################
+#faculties, pick one to begin
+#https://www.ucalgary.ca/pubs/calendar/current/index.html
+#  selecting faculty of science, https://www.ucalgary.ca/pubs/calendar/current/sc.html
+#  pick url for Program details, https://www.ucalgary.ca/pubs/calendar/current/sc-4.html
+#    pick concentration url
+#    picking Computer Science, https://www.ucalgary.ca/pubs/calendar/current/sc-4-3.html
+#      page contains some info, so parse as baseline
+#      select from programs in, Maj/Hon/Intern programs, Combined, and minor
+#        selecting programs in, https://www.ucalgary.ca/pubs/calendar/current/sc-4-3-1.html
+#          contains info on CPSC Major, Master, BSC in, plus specific concentrations
+#          important field labels?
+#            - coursescontituting
+#    
+#
+#
+#################################
+#                               #
+#    structural data layout     #
+#                               #
+#################################
+#
+#   intend to create a UofC structure which contains faculties under a semester(one for now)
+#
+#   using . notation for convenience/brevity/clarity, may use lists, dicts, or attributes as is convenient in the data
+#
+#     faculties may contain programs and courses.
+#           subject to potentially significant change
+#       faculty.semester.program...
+#       faculty.semester.courses...
+#
+#   programs may contain requisite types(req n 400 levels), and courses links
+#           subject to potentially significant change
+#       program.entry.req_n                         # (field entry reqs, high school, etc)
+#       program.entry.a_req                         # (field entry anti reqs, low gpa, F's, etc)
+#                               disjoint branching point
+#       program.grad                                # (top level program division, masters, honours, etc)
+#       program.grad.reqs                           # (top level requisites common to all concentrations)
+#       program.grad.a_reqs                         # (top level anti-requisites common to all concentrations)
+#                               disjoint branching point
+#       program.grad.conc                           # (top level program sub division, specific concentrations, or lack of)
+#       program.grad.conc.attribute                 # (concentration specific information)
+#       program.grad.conc.reqs.attributes           # (did time, took course, has credits, etc)
+#       program.grad.conc.reqs.courses              # (courses needed, potentially further subdivided, 300's, 400's, 500's, etc) 
+#       program.grad.conc.a_req.attribute           # (didn't do thing, fail, low gpa, etc)
+#       program.grad.conc.a_req.courses             # (courses excluded, potentially further subdivided, 300's, 400's, 500's, etc)
+#
+#   departments currently contain:
+#       dept.field                                  # (short for department it belongs to, such as CPSC, may not be sme as faculty)
+#       dept.name                                   # (full name of department)
+#       dept.IDS                                    # (class numbers, such as 471 for CPSC 471
+#       dept.IDS.<CLASS>                            # (class object, see below)                         
+#       dept.faculty                                # (not yet present, reference to parent faculty)
+#
+#
+#   classes currently contain their requisite tree and schedule information for given semester
+#       class.num                                   # (the classnumber, such as 471 for CPSC 471)
+#       class.name                                  # (the class name, such as Database Management Systems I)
+#       class.short                                 # (the short tag for the class, such as CPSC)
+#       class.details                               # (details, will likely replace with a schedule object to be built soon
+#       class.details.type                          # (LEC,LAB,TUT,SEM)
+#       class.details.type.n                        # (number of type, 2 for tut2, 3 for lec3, etc)
+#       class.details.type.n.day                    # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
+#       class.details.type.n.time                   # (time of each class, currently in string format as "XX:XX - XX:XX" 
+#       class.details.type.n.room                   # (room the class is held in)
+#       class.details.type.n.prof                   # (prof/TA teaching)
+#       class.details.type.n.seats                  # (not yet contained, want/need this for knowing if schedule is open)
+#       class.details.type.n.free                   # (not yet contained, want/need this for knowing if schedule is open)
+#       class.details.type.n.associated             # (not yet contained, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
+#   
+#   schedule may contain relevant class info:
+#       sched.type                                  # (LEC,LAB,TUT,SEM)
+#       sched.type.n                                # (number of type, 2 for tut2, 3 for lec3, etc)
+#       sched.type.n.day                            # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
+#       sched.type.n.time                           # (time of each class, currently in string format as "XX:XX - XX:XX" 
+#       sched.type.n.room                           # (room the class is held in)
+#       sched.type.n.prof                           # (prof/TA teaching)
+#       sched.type.n.seats                          # (want/need this for knowing if schedule is open)
+#       sched.type.n.free                           # (want/need this for knowing if schedule is open)
+#       sched.type.n.associated                     # (obj cross references, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
+#       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
