@@ -1,6 +1,16 @@
 #ict320, friday, 2pm
-import requests, os, json, re, operator, time, random, jsonpickle
+
+import sys, requests, os, json, re, operator, time, random
 from itertools import tee,zip_longest
+
+try:
+    import jsonpickle
+except:
+    print('this scraper relies on jsonpickle for json handling of user classes.')
+    print('you can get it at "https://jsonpickle.github.io/#download-install"')
+    print('Aborting')
+    sys.exit(1)
+
 
 indent=0
 verbose=False
@@ -58,6 +68,8 @@ class CLASS:
         d['name']  = c[2].strip()
         d['short'] = s            
         for k in d.keys():
+            #requisites, anti requisites, and the like are going to be here
+            #intend to replace the text with the actual cross reference links
             setattr(self,k,d[k])
         setattr(self,'raw',d)
     
@@ -66,6 +78,16 @@ class CLASS:
         s = s + ('\treq: %s'% self.prereq if self.prereq else '')
         return s
 
+#department is being used interchangeably with faculty here, may rename.
+    
+class DEPT:
+    def __init__(self,short=None,name=None,IDS={}):
+        self.name_short=short
+        self.name=name
+        self.IDS={}  #ID's should reference a CLASS object
+        
+        
+#not in use yet
 class FACULTY:
     def __init__(self,programs=None,departments=None,services=None,research=None):
         self.programs=programs
@@ -73,13 +95,6 @@ class FACULTY:
         self.services=services
         self.research=research
     
-
-class DEPT:
-    def __init__(self,short=None,name=None,IDS={}):
-        self.name_short=short
-        self.name=name
-        self.IDS={}
-
 def save_objs(path,obj):
     if verbose:
         print('saving to path',path)
