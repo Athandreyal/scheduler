@@ -18,15 +18,6 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36',
 }
 
-#generate default delays if necessary
-if not os.path.isfile('delays'):
-    delays = {'url':(1,5),'reject':(150,300)}
-    with open('delays','w') as f:
-        json.dump(delays,f)
-
-#load current delays
-with open('delays') as f:
-    delays = json.load(f)
 
 #constants  —
 #html prefix for ucalgary pages
@@ -66,16 +57,34 @@ class CLASS:
         d['dept']  = c[0].strip()
         d['num']   = c[1].strip()
         d['name']  = c[2].strip()
-        d['short'] = s            
-        for k in d.keys():
+        d['short'] = s
+        self.dept=d['dept']
+        self.num=d['num']
+        self.name=d['name']
+        self.short=d['short']
+        self.fields = ['dept','num','short','name','raw']
+        for k in [x for x in d.keys() if x not in ['dept','num','name','short'] and len(d[x]) > 0]:
             #requisites, anti requisites, and the like are going to be here
             #intend to replace the text with the actual cross reference links
             setattr(self,k,d[k])
+            self.fields.append(k)
         setattr(self,'raw',d)
-    
+#potential fields,
+#        dept,num,name,short,prereq,antireq,coreq,hours,desc,notes,aka,repeat,nogpa
+        #raw and various fields exist by the time I leave here        
+
+    def get(self,s):
+        return getattr(self,s,'')
+
     def __repr__(self):
+        return json.dumps(self.raw)
+    
+    def __str__(self):
         s = '%s %s %s %s\n'%(self.short,self.dept,self.num,self.name)
-        s = s + ('\treq: %s'% self.prereq if self.prereq else '')
+        s = s + ('\treq:   %s\n'% self.prereq) if hasattr(self,'prereq') and self.prereq else ''
+        s = s + ('\tareq:  %s\n'% self.antireq) if hasattr(self,'antireq') and self.antireq  else ''
+        s = s + ('\tcreq:  %s\n'% self.coreq) if hasattr(self,'coreq') and self.coreq  else ''
+        s = s + ('\tnotes: %s\n'% self.notes) if hasattr(self,'notes') and self.notes  else ''
         return s
 
 #department is being used interchangeably with faculty here, may rename.
@@ -84,7 +93,15 @@ class DEPT:
     def __init__(self,short=None,name=None,IDS={}):
         self.short=short
         self.name=name
-        self.IDS={}  #ID's should reference a CLASS object
+        self.IDS=IDS  #ID's should reference a CLASS object
+
+    def __repr__(self):
+        s = 'DEPT('+self.short+', '+self.name+', {'
+        for k in self.IDS:
+            s = s + k +': ' + self.IDS[k].__repr__()
+        s = s +')'
+        return s
+
         
         
 #not in use yet
@@ -133,7 +150,7 @@ def getTables(tables,short):
                     code.append(line[1])
                 else:
                     class_info[line[0]] = line[1]
-            classes[code[1]] = CLASS(class_info,code,short)            
+            classes[code[1]] = CLASS(class_info,code,short)
     return classes
         
 
@@ -156,6 +173,7 @@ def getTableFile(path,short):
         if html is not None:
             table = getTables(html.split('<table cellpadding')[1:],short)
             save_objs(calendar_path_root+path,table)
+            return table
         else:
             if type(table) == type({}):
                 print(table,'from',ucalgary_root+calendar_path_root+path)
@@ -170,7 +188,7 @@ def getTableFile(path,short):
                 pass
             departments_calendar_class_tables_load_fail = True
             table = getTableFile(path, short)
-        
+
 #gets calendar department links, loads file if exists, tests loaded obj, removes erroneous file and resets on failure
 def parse_depts(departments_path):
     global departments_calendar_load_fail
@@ -209,26 +227,6 @@ def parse_depts(departments_path):
     departments_calendar_load_fail = False
     print('\tinit department links complete')
     return departments
-
-def delay(s):
-    n,n2 = delays[s]
-    n = random.randint(n,n2)
-    while n > 0:
-        m = min(n,5)
-        print('delaying,',m,'seconds',n,' seconds remain')
-        time.sleep(m)
-        n = n - m
-
-def increase_delays():
-    url = (1,5)
-    reject = (150,300)
-    
-    delays['url'][0] = delays['url'][0] + url[0]
-    delays['url'][1] = delays['url'][1] + url[1]
-    delays['reject'][0] = delays['reject'][0] + reject[0]
-    delays['reject'][1] = delays['reject'][1] + reject[1]
-    with open('delays','w') as f:
-        json.dump(delays,f)
 
 def load_or_scrape(root,path):
     global html_request
@@ -382,18 +380,6 @@ def parse_schedules(short):
         }
     if short in specials:
         short = specials[short]
-#    if short == 'knes':
-#        short = 'kn'
-#    elif short == 'acct':
-#        short = 'ha'
-#    elif short == 'almc':
-#        short = 'slllc'
-#    elif short == 'bcem':
-#        short='bio'
-#    elif short == 'scie':
-#        short='natsci'
-#    elif short == 'glgy':
-#        short = 'geos'
     
     loaded,classes = load_or_scrape(contacts_root,class_day_time_path % short)
     if loaded:
@@ -416,7 +402,7 @@ def parse_schedules(short):
             dept_short = (re.search('[A-Z]{2,5}',re.search('>[A-Z]{2,5} [0-9]{3}( |\.|[A-Z].)',dept).group()).group())
         except:
             print(dept)
-            input()
+            input(428)
         department[dept_short] = slice_course_table(dept_short,dept)
         
     if len(department) > 0:
@@ -433,7 +419,6 @@ def slice_course_table(short,html):
         
     for info in [html[indices[i]:indices[i+1]] for i in range(len(indices)-1)][1:]:
         info_old = info
-#        info = strip_tags(info)
         short,info = info.split(' ',1)[0],info.split(' ',1)[1]
         num,info = info.split(' ',1)[0],(info.split(' ',1)[1])[2:]
         name,info = info[:info.find('<')],info[info.find('<'):]
@@ -447,18 +432,9 @@ def slice_course_table(short,html):
         NTS=[]
         DET=[]
         this = {}
-#        if '>' in name or '<' in name or '>' in num or '<' in num or '>' in short or '<' in short:
-#            print(info_old)
-#            print('====')
-#            print("'"+short+"'"+"'"+num+"'"+"'"+name+"'")
-#            input()
 
         for d in details:
             s = strip_tags(d)
-#            if '>' in s or '<' in s:
-#                print('s:  ',s)
-#                print('d:  ',d)
-#                input()
             match=re.search('[0-9]{2}:[0-9]{2} - [0-9]{2}:[0-9]{2}',s)
             if match or 'TBA' in s:
                 s = s.split(' ',2)
@@ -492,16 +468,14 @@ def slice_course_table(short,html):
         classes[num]={'num':num,'name':name,'short':short,'details':this}
     return classes
 
-        
-
 def scrape_department_and_class_reqs():
     departments = parse_depts(departments_path)
     full_class_info = {}
     finished_departments = False
     while not finished_departments:
         for d in departments.keys():
-            repeat = 0   #reset the repeat trigger
-            full_class_info[d] = DEPT(d,departments[d]['title'],getTableFile(departments[d]['link'],d))
+            class_table = getTableFile(departments[d]['link'],d)
+            full_class_info[d] = DEPT(d,departments[d]['title'],class_table)
         finished_departments = not(departments_calendar_load_fail or departments_calendar_class_tables_load_fail)
     return full_class_info
 
@@ -509,7 +483,6 @@ def scrape_faculties_and_class_schedules(depts):
     faculties = parse_faculties()
     departments = {}
     for dept in depts.keys():
-#        print(dept)
         schedules = parse_schedules(dept.lower())
         if schedules is not None:
             for short in schedules.keys():
@@ -520,6 +493,13 @@ def scrape_faculties_and_class_schedules(depts):
 def get_everything():
     print('getting class requisites')
     departments = scrape_department_and_class_reqs()
+#    for d in departments:
+#        for i in departments[d].IDS:
+#            for field in departments[d].IDS[i].fields:
+#                if field != 'raw':
+#                    print(field)
+#                    print('\t',getattr(departments[d].IDS[i],field))
+#            input(520)
     print('getting class schedules')
     faculties = scrape_faculties_and_class_schedules(departments)
     print('data scrape/load completed')
@@ -535,7 +515,24 @@ def get_everything():
 
     last_dept=None
     last_class=None
-    
+
+#    pretty_print_classes(found)
+#    pretty_print_notes_field(found)
+
+
+def pretty_print_notes_field(found):
+    for key in sorted(found.keys()):
+        for i in sorted(found[key].IDS.keys()):
+            if len(found[key].IDS[i]['details'].keys()) > 0:
+                for t in ['SEM','LEC','LAB','TUT']:
+                    if t in found[key].IDS[i]['details']:
+                        for n in sorted(found[key].IDS[i]['details'][t].keys()):
+                            print(found[key].IDS[i])
+                            input(546)
+
+
+#outputs every class that yielded schedule data, and for each of those the schedules indented on following lines.
+def pretty_print_classes(found):
     for key in sorted(found.keys()):
         for i in sorted(found[key].IDS.keys()):
             if len(found[key].IDS[i]['details'].keys()) > 0:
@@ -553,6 +550,8 @@ def get_everything():
                                 last_class = found[key].IDS[i]
 #    print('contains information on',schedule_count,'separate schedule items')
     print(dept_count,'departments,',class_count,'classes,',schedule_count,'schedule items')
+    
+
     
 get_everything()
 
@@ -572,7 +571,6 @@ get_everything()
 #        selecting programs in, https://www.ucalgary.ca/pubs/calendar/current/sc-4-3-1.html
 #          contains info on CPSC Major, Master, BSC in, plus specific concentrations
 #          important field labels?
-#            - coursescontituting
 #    
 #
 #
@@ -629,7 +627,8 @@ get_everything()
 #       class.details.type.n.seats                  # (not yet contained, want/need this for knowing if schedule is open)
 #       class.details.type.n.free                   # (not yet contained, want/need this for knowing if schedule is open)
 #       class.details.type.n.associated             # (not yet contained, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
-#   
+#
+#   might generate a schedule to replace the class details field with
 #   schedule may contain relevant class info:
 #       sched.type                                  # (LEC,LAB,TUT,SEM)
 #       sched.type.n                                # (number of type, 2 for tut2, 3 for lec3, etc)
@@ -656,3 +655,4 @@ get_everything()
 
 
 
+1
