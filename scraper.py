@@ -48,7 +48,6 @@ departments_calendar_load_fail = False
 departments_calendar_class_tables_load_fail = False
 contacts_departments_load_fail = False
 contacts_classes_load_fail = False
-repeat = 0
 
 name_to_short = {}
 
@@ -76,6 +75,10 @@ class CLASS:
     def get(self,s):
         return getattr(self,s,'')
 
+    def add_field(self,name,data):
+        setattr(self,name,data)
+        self.fields.append(name)
+
     def __repr__(self):
         return json.dumps(self.raw)
     
@@ -101,7 +104,6 @@ class DEPT:
             s = s + k +': ' + self.IDS[k].__repr__()
         s = s +')'
         return s
-
         
         
 #not in use yet
@@ -157,7 +159,6 @@ def getTables(tables,short):
 #gets calendar class tables, loads file if exists, tests loaded obj, removes erroneous file and resets on failure
 def getTableFile(path,short):
     global departments_calendar_class_tables_load_fail
-    global repeat
     loaded = False
     try:
         loaded,table = load_or_scrape(ucalgary_root,calendar_path_root+path)
@@ -179,13 +180,6 @@ def getTableFile(path,short):
                 print(table,'from',ucalgary_root+calendar_path_root+path)
             else:
                 print(type(table),table)
-            if repeat == 3:
-                return None
-            repeat = repeat + 1
-            try:
-                os.remove(calendar_path_root+path)
-            except:
-                pass
             departments_calendar_class_tables_load_fail = True
             table = getTableFile(path, short)
 
@@ -218,22 +212,16 @@ def parse_depts(departments_path):
         if type(departments) == type({}) and 'ARKY' in departments.keys():
             save_objs(departments_path, departments)
         else:
-            if repeat == 3:
-                return None
-            repeat = repeat + 1
             departments_calendar_load_fail = True
             os.remove(departments_path)
             departments = parse_depts(departments_path)
     departments_calendar_load_fail = False
-    print('\tinit department links complete')
     return departments
 
 def load_or_scrape(root,path):
-    global html_request
     raw = 'raw_html/'
     if os.path.exists(path):
         with open(path) as f:
-            html_request = False
             return True, jsonpickle.decode(json.load(f))
     else:
         if os.path.exists(raw+path):
@@ -245,8 +233,6 @@ def load_or_scrape(root,path):
                 content = content.replace('\\xc3\\xad','í').replace('\\xc3\\xba','ú').replace('\\xc3\\xb6','ö')
                 content = content.replace('\\xc2\\xa0',' ').replace('&#x0A','\n').replace('&nbsp;',' ').replace('\t',' ')
                 return False, content
-
-        html_request = True
         
         folder = os.path.dirname(raw+path)
         
@@ -262,7 +248,6 @@ def load_or_scrape(root,path):
 
 #will have faculties,with sub-departments, classes schedules, locations, and professors by end of this function
 def parse_faculties():
-    global repeat
     global contacts_departments_load_fail
 
     #if exist, open, else scrape
@@ -333,14 +318,10 @@ def parse_faculties():
     if type(faculties) == type({}) and len(faculties.keys()) > 0:#expand to a thorough test
         save_objs(faculties_path,faculties)
     else:
-        if repeat == 3:
-            return None
-        repeat = repeat + 1
         os.remove(faculties_path)
         contacts_departments_load_fail = True
         faculties = parse_faclties()
     contacts_classes_load_fail = False
-    print('finished',faculties_path)
     return faculties
 
 #def parse_schedule_table(html):
@@ -410,7 +391,6 @@ def parse_schedules(short):
     return department
 
 def slice_course_table(short,html):
-    global repeat
     global contacts_classes_load_fail
     indices = [i.span()[0]+1 for i in re.finditer('>[A-Z]{2,5} [0-9]{3}( |\.)',html)]
     indices.insert(0,0)
@@ -493,22 +473,46 @@ def scrape_faculties_and_class_schedules(depts):
 def get_everything():
     print('getting class requisites')
     departments = scrape_department_and_class_reqs()
-#    for d in departments:
-#        for i in departments[d].IDS:
-#            for field in departments[d].IDS[i].fields:
-#                if field != 'raw':
-#                    print(field)
-#                    print('\t',getattr(departments[d].IDS[i],field))
-#            input(520)
     print('getting class schedules')
     faculties = scrape_faculties_and_class_schedules(departments)
     print('data scrape/load completed')
     not_found = [x for x in departments.keys() if x not in faculties.keys()]
     found = {}
+
+    
     for key in departments.keys():
         if key in faculties:
             found[key] = departments[key]
-            found[key].IDS = faculties[key]
+            for ID in found[key].IDS:
+                if ID in faculties[key]:
+                    found[key].IDS[ID].add_field('details',faculties[key][ID]['details'])
+#                    print(found[key].IDS[ID].details)
+#                    input(513)
+    pretty_print_classes(found)
+    pretty_print_fields(found)
+
+
+def pretty_print_fields(found):
+    for key in sorted(found.keys()):
+        for ID in found[key].IDS:
+            for field in found[key].IDS[ID].fields:
+                if field != 'raw':
+                    print(field)
+                    if field == 'details':
+                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t')
+                    else:
+                        print('\t',getattr(found[key].IDS[ID],field))
+            print('\n\npress enter for next class...')
+            input('you can safely use crl-c to exit immediately as well\n\n')
+
+            
+def pretty_print_details(details,prefix=''):
+    for t in details:  #type, lec, lab, etc
+        for n in details[t]:   #number of type, tut2, lec 3, etc
+            print(prefix,t,n,'\t',details[t][n]['day'],'\t',details[t][n]['time'],'\t',details[t][n]['room'],'\t',details[t][n]['prof'])
+
+#outputs every class that yielded schedule data, and for each of those the schedules indented on following lines.
+def pretty_print_classes(found):
     dept_count = 0
     class_count = 0
     schedule_count = 0
@@ -516,31 +520,12 @@ def get_everything():
     last_dept=None
     last_class=None
 
-#    pretty_print_classes(found)
-#    pretty_print_notes_field(found)
-
-
-def pretty_print_notes_field(found):
     for key in sorted(found.keys()):
         for i in sorted(found[key].IDS.keys()):
-            if len(found[key].IDS[i]['details'].keys()) > 0:
+            if hasattr(found[key].IDS[i],'details') and len(found[key].IDS[i].details.keys()) > 0:
                 for t in ['SEM','LEC','LAB','TUT']:
-                    if t in found[key].IDS[i]['details']:
-                        for n in sorted(found[key].IDS[i]['details'][t].keys()):
-                            print(found[key].IDS[i])
-                            input(546)
-
-
-#outputs every class that yielded schedule data, and for each of those the schedules indented on following lines.
-def pretty_print_classes(found):
-    for key in sorted(found.keys()):
-        for i in sorted(found[key].IDS.keys()):
-            if len(found[key].IDS[i]['details'].keys()) > 0:
-#                print(found[key].IDS[i]['short'],found[key].IDS[i]['num'],found[key].IDS[i]['name'])
-                for t in ['SEM','LEC','LAB','TUT']:
-                    if t in found[key].IDS[i]['details']:
-                        for n in sorted(found[key].IDS[i]['details'][t].keys()):
-#                            print('\t',t,n,found[key].IDS[i]['details'][t][n]['day'],found[key].IDS[i]['details'][t][n]['time'],found[key].IDS[i]['details'][t][n]['room'],found[key].IDS[i]['details'][t][n]['prof'])
+                    if t in found[key].IDS[i].details:
+                        for n in sorted(found[key].IDS[i].details[t].keys()):
                             schedule_count = schedule_count+1
                             if key != last_dept:
                                 dept_count = dept_count+1
