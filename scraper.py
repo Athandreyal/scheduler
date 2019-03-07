@@ -41,6 +41,8 @@ faculties_path = 'directory/faculties'
     # append class short and num as e.g. CPSC203
 class_day_time_path = 'info/%s/courses/w19'
 
+#objs_path for intermediate objects to reduce processing time while iteratively building up
+objs_path = 'tmp/objs'
 
 #globals
 html_request = False
@@ -113,6 +115,25 @@ class FACULTY:
         self.departments=departments
         self.services=services
         self.research=research
+
+class SCHED:
+    def __init__(self,parent,_type,num,day,time,room,prof,associated=None,seats=None,free=None):
+        self.parent     = parent
+        self.type       = _type
+        self.num        = num
+        self.day        = day
+        self.time       = time
+        self.room       = room
+        self.prof       = prof
+        self.associated = associated
+        self.seats      = seats
+        self.free       = free
+
+
+
+
+
+
     
 def save_objs(path,obj):
     folder = os.path.dirname(path)
@@ -245,6 +266,14 @@ def load_or_scrape(root,path):
                 f.write(str(line))
         return load_or_scrape(root,path)
 
+def load_obj(root, path):
+    try:
+        if os.path.exists(path):
+            with open(path) as f:
+                return True, jsonpickle.decode(json.load(f))
+    except:
+        return False,None
+    
 
 #will have faculties,with sub-departments, classes schedules, locations, and professors by end of this function
 def parse_faculties():
@@ -470,22 +499,74 @@ def scrape_faculties_and_class_schedules(depts):
                 departments[short] = schedules[short]
     return departments
 
+def load_obj(obj):
+    print('attempting to open',objs_path+obj)
+    if os.path.exists(objs_path+obj):
+        with open(objs_path+obj) as f:
+            return True, jsonpickle.decode(json.load(f))
+    else:
+        print(objs_path+obj,'doesn\'t exist')
+        return False,None
+
+def joinDepartmentsFaculties(departments, faculties):
+    print('combining department and faculty data')
+    path_to_file = '/FoundDeptFac'
+    loaded, found = load_obj(path_to_file)
+    
+    if loaded:
+        print('loaded from disk')
+        return found
+    else:
+        found = {}
+        for key in departments.keys():
+            if key in faculties:
+                found[key] = departments[key]
+                for ID in found[key].IDS:
+                    if ID in faculties[key]:
+                        found[key].IDS[ID].add_field('details',faculties[key][ID]['details'])
+        #post merge cleaning - some miscellaneous characters to murder
+        for key in found.keys():
+            for ID in found[key].IDS:
+                for field in found[key].IDS[ID].fields:
+                    if field != 'raw'and field != 'details':
+                        content = getattr(found[key].IDS[ID],field)
+                        content2 = content.replace("'b'\\t\\t",'\n').replace("\"b'\\t\\t",'\n').replace("'b\"\\t\\t",'\n')
+                        content2 = content2.replace("'b'",' ').replace("\"b'",' ').replace("'b\"",' ').replace('\\t','	')
+                        content2 = content2.replace('\\xe2\\x80\\x98','‘').replace('\\xe2\\x80\\x99','’').replace('\\xe2\\x80\\x93','–')
+                        content2 = content2.replace('\\xc3\\x89','É').replace('\\xc3\\xaf','ï').replace('\\xc3\\xa0','à').replace('\\xc3\\xa8','è')
+                        content2 = content2.replace('\\xc3\\x82','Â').replace('\\xc3\\xb4','ô').replace('\\xc3\\xa2','â')
+                        content2 = content2.replace('\\xe2\\x80\\x9c','“').replace('\\xe2\\x80\\x9d','”').replace('\\xe2\\x80\\x94','—')
+                        content2 = content2.replace("\\'","'")
+                        if content != content2:
+                            setattr(found[key].IDS[ID],field,content2)
+                            found[key].IDS[ID].raw[field] = content2
+        print('saving combined faculties/departments object to disk')
+        save_objs(path_to_file,found)
+        return found
+
+#def boolParser(s):
+    
+
 def get_everything():
+    print('attempting load full class obj')
+    
     print('getting class requisites')
     departments = scrape_department_and_class_reqs()
     print('getting class schedules')
     faculties = scrape_faculties_and_class_schedules(departments)
     print('data scrape/load completed')
     not_found = [x for x in departments.keys() if x not in faculties.keys()]
-    found = {}
 
+    found = joinDepartmentsFaculties(departments, faculties)
     
-    for key in departments.keys():
-        if key in faculties:
-            found[key] = departments[key]
-            for ID in found[key].IDS:
-                if ID in faculties[key]:
-                    found[key].IDS[ID].add_field('details',faculties[key][ID]['details'])
+#    found = {}
+#    #join data from departments and faculties
+#    for key in departments.keys():
+#        if key in faculties:
+#            found[key] = departments[key]
+#            for ID in found[key].IDS:
+#                if ID in faculties[key]:
+#                    found[key].IDS[ID].add_field('details',faculties[key][ID]['details'])
 #                    print(found[key].IDS[ID].details)
 #                    input(513)
     pretty_print_classes(found)
@@ -493,17 +574,51 @@ def get_everything():
 
 
 def pretty_print_fields(found):
+    desire_class_short = None     #if you only want to see a given short
+    desire_class_num   =  None       #if you only want a given class number
+    desire_class_field = 'antireq'    #if you only want a given field
+    begin_from_short = None
+    do_print=begin_from_short == None
+
+    print('pretty printing classes...')
+    if begin_from_short is not None:
+        print('skipping print until '+begin_from_short)
     for key in sorted(found.keys()):
-        for ID in found[key].IDS:
-            for field in found[key].IDS[ID].fields:
-                if field != 'raw':
-                    print(field)
-                    if field == 'details':
-                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t')
-                    else:
-                        print('\t',getattr(found[key].IDS[ID],field))
-            print('\n\npress enter for next class...')
-            input('you can safely use crl-c to exit immediately as well\n\n')
+        do_print = do_print or begin_from_short.upper() == key.upper()
+        if do_print:
+            if desire_class_short is None or desire_class_short == key:  
+                for ID in found[key].IDS:
+                    if desire_class_num is None or desire_class_num == int(ID[:3]):
+                        printed=False
+                        for field in found[key].IDS[ID].fields:
+                            if desire_class_field is not None:
+                                if field == desire_class_field:
+                                    printed=True
+                                    print(getattr(found[key].IDS[ID],'short'),getattr(found[key].IDS[ID],'num'),getattr(found[key].IDS[ID],'name'))
+                                    print('\t'+field)
+                                    if field == 'details':
+                                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t\t\t')
+                                    else:
+                                        s = '\t\t'
+                                        for word in getattr(found[key].IDS[ID],field).split(' '):
+                                            if len(s + word) > 80:
+                                                print(s)
+                                                s = '\t\t'+word+' '
+                                            elif len(word) > 0:
+                                                s = s + word + ' ' 
+                                        s=s+'\n\n'
+                                        print(s)
+                            else:
+                                if field != 'raw':
+                                    printed=True
+                                    print(field)
+                                    if field == 'details':
+                                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t\t')
+                                    else:
+                                        print('\t\t',getattr(found[key].IDS[ID],field))
+                        if printed:
+                            print('\n\npress enter for next class...')
+                            input('you can safely use crl-c to exit immediately as well\n\n')
 
             
 def pretty_print_details(details,prefix=''):
@@ -602,29 +717,37 @@ get_everything()
 #       class.num                                   # (the classnumber, such as 471 for CPSC 471)
 #       class.name                                  # (the class name, such as Database Management Systems I)
 #       class.short                                 # (the short tag for the class, such as CPSC)
-#       class.details                               # (details, will likely replace with a schedule object to be built soon
-#       class.details.type                          # (LEC,LAB,TUT,SEM)
-#       class.details.type.n                        # (number of type, 2 for tut2, 3 for lec3, etc)
-#       class.details.type.n.day                    # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
-#       class.details.type.n.time                   # (time of each class, currently in string format as "XX:XX - XX:XX" 
-#       class.details.type.n.room                   # (room the class is held in)
-#       class.details.type.n.prof                   # (prof/TA teaching)
-#       class.details.type.n.seats                  # (not yet contained, want/need this for knowing if schedule is open)
-#       class.details.type.n.free                   # (not yet contained, want/need this for knowing if schedule is open)
-#       class.details.type.n.associated             # (not yet contained, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
+#
+#
+#       #  implementing soon
+#       class.scheds                                # (collection of schedule objects, a dict in python)
+#       class.scheds.type.n                         # (location of each schedule object)
+#
+#       #  deprecating soon
+#       #   class.details                               # (details, will likely replace with a schedule object to be built soon
+#       #   class.details.type                          # (LEC,LAB,TUT,SEM)
+#       #   class.details.type.n                        # (number of type, 2 for tut2, 3 for lec3, etc)
+#       #   class.details.type.n.day                    # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
+#       #   class.details.type.n.time                   # (time of each class, currently in string format as "XX:XX - XX:XX" 
+#       #   class.details.type.n.room                   # (room the class is held in)
+#       #   class.details.type.n.prof                   # (prof/TA teaching)
+#       #   class.details.type.n.seats                  # (not yet contained, want/need this for knowing if schedule is open)
+#       #   class.details.type.n.free                   # (not yet contained, want/need this for knowing if schedule is open)
+#       #   class.details.type.n.associated             # (not yet contained, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
 #
 #   might generate a schedule to replace the class details field with
+#   might generate a schedule to replace the class details field with
 #   schedule may contain relevant class info:
+#       sched.parent                                # (parent class obj for object backtracing - to ease swapping one class schedule for another)
 #       sched.type                                  # (LEC,LAB,TUT,SEM)
-#       sched.type.n                                # (number of type, 2 for tut2, 3 for lec3, etc)
-#       sched.type.n.day                            # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
-#       sched.type.n.time                           # (time of each class, currently in string format as "XX:XX - XX:XX" 
-#       sched.type.n.room                           # (room the class is held in)
-#       sched.type.n.prof                           # (prof/TA teaching)
-#       sched.type.n.seats                          # (want/need this for knowing if schedule is open)
-#       sched.type.n.free                           # (want/need this for knowing if schedule is open)
-#       sched.type.n.associated                     # (obj cross references, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
-#       
+#       sched.n                                     # (number of type, 2 for tut2, 3 for lec3, etc)
+#       sched.day                                   # (day of class, in string format with MTWRF for mon, tues, wed, thurs, fri respectively)
+#       sched.time                                  # (time of each class, currently in string format as "XX:XX - XX:XX" 
+#       sched.room                                  # (room the class is held in)
+#       sched.prof                                  # (prof/TA teaching)
+#       sched.seats                                 # (want/need this for knowing if schedule is open)
+#       sched.free                                  # (want/need this for knowing if schedule is open)
+#       sched.associated                            # (obj cross references, want/need this for knowing related classes, such as Lec N must take TUT M and Lab O)
 
 
 
@@ -632,12 +755,3 @@ get_everything()
 
 
 
-
-
-
-
-
-
-
-
-1
