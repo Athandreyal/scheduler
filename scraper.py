@@ -1,6 +1,11 @@
 #ict320, friday, 2pm
 
-import sys, requests, os, json, re, operator, time, random
+# AMAT and PMAT deprecated, adding them manually to the full and short name dicts
+
+
+
+import sys, requests, os, json, re, operator, time, random, sqlite3
+import bool_parser as parse
 from itertools import tee,zip_longest
 
 try:
@@ -52,6 +57,8 @@ contacts_departments_load_fail = False
 contacts_classes_load_fail = False
 
 name_to_short = {}
+short_to_name = {}
+department_names = {}
 
 class CLASS:
     def __init__(self,d,c,s):
@@ -71,7 +78,7 @@ class CLASS:
             self.fields.append(k)
         setattr(self,'raw',d)
 #potential fields,
-#        dept,num,name,short,prereq,antireq,coreq,hours,desc,notes,aka,repeat,nogpa
+#        dept,num,name,short,prereq,antireq,coreq,,desc,notes,aka,repeat,nogpa
         #raw and various fields exist by the time I leave here        
 
     def get(self,s):
@@ -107,7 +114,6 @@ class DEPT:
         s = s +')'
         return s
         
-        
 #not in use yet
 class FACULTY:
     def __init__(self,programs=None,departments=None,services=None,research=None):
@@ -129,17 +135,10 @@ class SCHED:
         self.seats      = seats
         self.free       = free
 
-
-
-
-
-
-    
 def save_objs(path,obj):
     folder = os.path.dirname(path)
     if not os.path.exists(folder):
         os.makedirs(folder)
-    
     with open(path,'w') as f:
         json.dump(jsonpickle.encode(obj),f)
     
@@ -208,34 +207,57 @@ def getTableFile(path,short):
 def parse_depts(departments_path):
     global departments_calendar_load_fail
     global name_to_short
-    loaded,faculties = load_or_scrape(ucalgary_root,departments_path)
-    if loaded:
+    global short_to_name
+    loaded_d, departments = load_or_scrape(ucalgary_root,departments_path)
+    loaded_n, name_to_short = load_obj(objs_path+'/name_to_short')
+    loaded_s, short_to_name = load_obj(objs_path+'/short_to_name')
+    if loaded_d and loaded_n and loaded_s:
         departments_calendar_load_fail = False
-        return faculties
+        return departments
     else:
-        departments={}
-        lines = faculties.split('\n')
-        for line in lines:
-            line=str(line)
-            line = line.replace('\t','').strip().split('<br/>')
-            for subline in line:
-                if 'link-text' in subline:
-                    s = subline.split('link-text')
-                    link=(s[0]).split('"')[-3]
-                    title_short = (((s[1]).replace('>','<').split('<'))[1]).strip().split(' ')
-                    if len(title_short[-1]) <= 4 and title_short[-1] == title_short[-1].upper():
-                        title,short = ' '.join([s for s in title_short[:-1]]),title_short[-1]
-                    else:
-                        title,short = ' '.join([s for s in title_short]),''
-                    if short and title and len(short) > 1:
-                        departments[short]={'title':title,'link':link,'class':{}}
-                        name_to_short[title] = short
-        if type(departments) == type({}) and 'ARKY' in departments.keys():
-            save_objs(departments_path, departments)
+        if loaded_d:
+            #then not n or not s, so parse those
+            name_to_short = {}
+            short_to_name = {}
+            for key in departments.keys():
+                name_to_short[departments[key]['title']] = key
+                short_to_name[key] = departments[key]['title']
+            save_objs(objs_path+'/name_to_short', name_to_short)
+            save_objs(objs_path+'/short_to_name', short_to_name)
+            return departments
         else:
-            departments_calendar_load_fail = True
-            os.remove(departments_path)
-            departments = parse_depts(departments_path)
+            lines = departments.split('\n')
+            departments={}
+            name_to_short = {}
+            short_to_name = {}
+            for line in lines:
+                line=str(line)
+                line = line.replace('\t','').strip().split('<br/>')
+                for subline in line:
+                    if 'link-text' in subline:
+                        s = subline.split('link-text')
+                        link=(s[0]).split('"')[-3]
+                        title_short = (((s[1]).replace('>','<').split('<'))[1]).strip().split(' ')
+                        if len(title_short[-1]) <= 4 and title_short[-1] == title_short[-1].upper():
+                            title,short = ' '.join([s for s in title_short[:-1]]),title_short[-1]
+                        else:
+                            title,short = ' '.join([s for s in title_short]),''
+                        if short and title and len(short) > 1:
+                            departments[short]={'title':title,'link':link,'class':{}}
+                            try:
+                                name_to_short[title] = short
+                            except:
+                                print(type(name_to_short),type(title),type(short))
+                                3/0
+                            short_to_name[short] = title
+            if type(departments) == type({}) and 'ACCT' in departments.keys() and 'Accounting' in name_to_short.keys() and 'ACCT' in short_to_name.keys():
+                save_objs(departments_path, departments)
+                save_objs(objs_path+'/name_to_short', name_to_short)
+                save_objs(objs_path+'/short_to_name', short_to_name)
+            else:
+                departments_calendar_load_fail = True
+                os.remove(departments_path)
+                departments = parse_depts(departments_path)
     departments_calendar_load_fail = False
     return departments
 
@@ -266,14 +288,15 @@ def load_or_scrape(root,path):
                 f.write(str(line))
         return load_or_scrape(root,path)
 
-def load_obj(root, path):
-    try:
-        if os.path.exists(path):
-            with open(path) as f:
-                return True, jsonpickle.decode(json.load(f))
-    except:
+def load_obj(obj):
+    print('attempting to open',obj)
+    if os.path.exists(obj):
+        with open(obj) as f:
+            return True, jsonpickle.decode(json.load(f))
+    else:
+        print(obj,'doesn\'t exist')
         return False,None
-    
+
 
 #will have faculties,with sub-departments, classes schedules, locations, and professors by end of this function
 def parse_faculties():
@@ -306,6 +329,8 @@ def parse_faculties():
         fac = strip_tags(fac)
         s = fac.find('http')
         faculty = fac[:s]
+        if 'Qatar' in faculty:
+            faculty = faculty.replace('\\t',' ')
         web = fac[s:]
         faculties[faculty] = {}
         faculties[faculty]['web'] = web
@@ -341,7 +366,6 @@ def parse_faculties():
             s,e,t = point[0]
             s = s+len(t)
             divided[t] = (program[s:e]).replace(', ',',').split(',')
-
         faculties[faculty] = divided
         #Arts Exists
     if type(faculties) == type({}) and len(faculties.keys()) > 0:#expand to a thorough test
@@ -444,6 +468,7 @@ def slice_course_table(short,html):
 
         for d in details:
             s = strip_tags(d)
+
             match=re.search('[0-9]{2}:[0-9]{2} - [0-9]{2}:[0-9]{2}',s)
             if match or 'TBA' in s:
                 s = s.split(' ',2)
@@ -478,39 +503,56 @@ def slice_course_table(short,html):
     return classes
 
 def scrape_department_and_class_reqs():
+    global name_to_short
+    global short_to_name
+    loaded, full_class_info = load_obj(objs_path+'/requisites')
+    loaded_n, name_to_short = load_obj(objs_path+'/name_to_short')
+    loaded_s, short_to_name = load_obj(objs_path+'/short_to_name')
+    if loaded and loaded_n and loaded_s:
+        return full_class_info
     departments = parse_depts(departments_path)
     full_class_info = {}
     finished_departments = False
+    working = ''
+    print('\t',end='')
     while not finished_departments:
-        for d in departments.keys():
+        for d in sorted(departments.keys()):
+            if d[0] != working:
+                working = d[0]
+                print ('.',end='')
             class_table = getTableFile(departments[d]['link'],d)
             full_class_info[d] = DEPT(d,departments[d]['title'],class_table)
         finished_departments = not(departments_calendar_load_fail or departments_calendar_class_tables_load_fail)
+    print('\n')
+    save_objs(objs_path+'/requisites',full_class_info)
     return full_class_info
 
 def scrape_faculties_and_class_schedules(depts):
+    loaded_d, departments = load_obj(objs_path+'/schedules')
+    loaded_f, faculties = load_or_scrape(contacts_root,faculties_path)
+
+    if loaded_d and loaded_f:
+        return departments, faculties
     faculties = parse_faculties()
     departments = {}
+    working = ''
+    print('\t',end='')
+    schedules = {}
     for dept in depts.keys():
         schedules = parse_schedules(dept.lower())
         if schedules is not None:
             for short in schedules.keys():
-                    
+                if short[0] != working:
+                    working = short[0]
+                    print ('.',end='')
                 departments[short] = schedules[short]
-    return departments
-
-def load_obj(obj):
-    print('attempting to open',objs_path+obj)
-    if os.path.exists(objs_path+obj):
-        with open(objs_path+obj) as f:
-            return True, jsonpickle.decode(json.load(f))
-    else:
-        print(objs_path+obj,'doesn\'t exist')
-        return False,None
+    print('\n')
+    save_objs(objs_path+'/schedules',departments)
+    return departments, faculties
 
 def joinDepartmentsFaculties(departments, faculties):
     print('combining department and faculty data')
-    path_to_file = '/FoundDeptFac'
+    path_to_file = objs_path+'/FoundDeptFac'
     loaded, found = load_obj(path_to_file)
     
     if loaded:
@@ -528,7 +570,9 @@ def joinDepartmentsFaculties(departments, faculties):
         for key in found.keys():
             for ID in found[key].IDS:
                 for field in found[key].IDS[ID].fields:
-                    if field != 'raw'and field != 'details':
+                    if field == 'hours':
+                        found[key].IDS[ID].hours= re.findall('([0-9]{0,2}|[0-9]{0,2}.[0-9]{0,2}) units',found[key].IDS[ID].hours)[0]
+                    elif field != 'raw'and field != 'details':
                         content = getattr(found[key].IDS[ID],field)
                         content2 = content.replace("'b'\\t\\t",'\n').replace("\"b'\\t\\t",'\n').replace("'b\"\\t\\t",'\n')
                         content2 = content2.replace("'b'",' ').replace("\"b'",' ').replace("'b\"",' ').replace('\\t','	')
@@ -544,18 +588,77 @@ def joinDepartmentsFaculties(departments, faculties):
         save_objs(path_to_file,found)
         return found
 
-#def boolParser(s):
+def bool_parser(ID,s):
+    dept_names = []
+    for key in department_names:
+        dept_names.append(key.strip())
+        for key2 in department_names[key]:
+            dept_names+= department_names[key][key2]
+    #special case program names know previouusly found
+    dept_names+=['Master of Management Program','Program Co-ordinator','School of Languages, Linguistics, Literatures and Cultures','Anthropology Honours Program','Archaeology BSc Honours program']
+    s = parse.steps(s, name_to_short, dept_names)
+    print('')
+    print(s)
+
+def bool_parser_old(ID,s):
+    #A and B; or C
+    #A and B; or A and #units and consent
+    #admssion and units including
+    #admission including A or B, and C
     
+    #replace long names with shorts
+    #replace ful names with shorts
+    names = sorted([x for x in name_to_short.keys() if x in s],key=len, reverse=True)
+    for name in sorted([x for x in name_to_short.keys() if x in s],key=len, reverse=True):
+        s = s.replace(name,name_to_short[name])
+    short = ''
+    words = s.split(' ')
+    for i,word in enumerate(words):
+        if word in short_to_name.keys():
+            short = word
+        if re.search('[0-9]{3}',word):
+            if words[i-1] != short:
+                words[i]=short+word  #REMOVED THE SPACE BETWEEN, NOW CAUSES CLASS ID TOKENISING
+    s = ' '.join(words)
+#    print('matches = ',[x.strip() for x in re.findall('([A-Z]{2,5} [0-9]{3}.[0-9]{2}[A-Z]{1}|[A-Z]{2,5} [0-9]{3}.[0-9]{2}|[A-Z]{2,5} [0-9]{3})',s) if x.strip() != ID])
+    print(s)
+    if 'consent' in s.lower() or 'admission' in s.lower():  #then split the string there, the regex fails if thematch is inside the string, not sure why
+        #find it
+        indices = [i.start() for i in re.finditer('[Aa]dmission|[Cc]onsent',s)]
+        indices2 = [i.start() for i in re.finditer(',|\.|;| or| and',s)]
+        groups = []
+        j=0
+        for i in indices:
+            groups.append((i,min([k for k in indices2 if k > i]+[len(s)])))
+        print(groups)
+        for substring in groups:
+            s2 = s[substring[0]:substring[1]]+'.'
+            print(s2)
+            admission = re.match('[aA]dmission to (the |)(.+?(?=\.|,| and| will| may))',s2)
+            if admission is not None:
+                admission = admission.groups()[-1]
+                print('Admission req: ',admission)
+            consent = re.match('[cC]onsent of (the |)(.+?(?=\.|,| and| will| may))',s2)
+            if consent is not None:
+                consent=consent.groups()[-1]
+                print('Consent req: ',consent)
+    #any n of     list      n may be zero, return n of list matches
 
 def get_everything():
+    global department_names
     print('attempting load full class obj')
-    
+
     print('getting class requisites')
     departments = scrape_department_and_class_reqs()
     print('getting class schedules')
-    faculties = scrape_faculties_and_class_schedules(departments)
+    faculties, department_names = scrape_faculties_and_class_schedules(departments)
     print('data scrape/load completed')
-    not_found = [x for x in departments.keys() if x not in faculties.keys()]
+    name_to_short['Applied Mathematics']='AMAT'
+    name_to_short['Pure Mathematics']='PMAT'
+    short_to_name['AMAT'] = 'Applied Mathematics'
+    short_to_name['PMAT'] = 'Pure Mathematics'
+    
+#    not_found = [x for x in departments.keys() if x not in faculties.keys()]
 
     found = joinDepartmentsFaculties(departments, faculties)
     
@@ -569,14 +672,13 @@ def get_everything():
 #                    found[key].IDS[ID].add_field('details',faculties[key][ID]['details'])
 #                    print(found[key].IDS[ID].details)
 #                    input(513)
-    pretty_print_classes(found)
+#    pretty_print_classes(found)
     pretty_print_fields(found)
 
-
-def pretty_print_fields(found):
+def pretty_print_fields2(found):
     desire_class_short = None     #if you only want to see a given short
     desire_class_num   =  None       #if you only want a given class number
-    desire_class_field = 'antireq'    #if you only want a given field
+    desire_class_field = 'prereq'    #if you only want a given field
     begin_from_short = None
     do_print=begin_from_short == None
 
@@ -594,6 +696,51 @@ def pretty_print_fields(found):
                             if desire_class_field is not None:
                                 if field == desire_class_field:
                                     printed=True
+                                    if field == 'details':
+                                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t\t\t')
+                                    else:
+                                        s = '\t'
+                                        for word in getattr(found[key].IDS[ID],field).split(' '):
+                                                s = s + word + ' ' 
+                                        print(s,end='')
+                            else:
+                                if field != 'raw':
+                                    printed=True
+                                    print(field)
+                                    if field == 'details':
+                                        pretty_print_details(getattr(found[key].IDS[ID],field),'\t\t')
+                                    else:
+                                        print('\t\t',getattr(found[key].IDS[ID],field))
+                        if printed:
+                            input()
+
+def pretty_print_fields(found):
+    desire_class_short = None     #if you only want to see a given short
+    desire_class_num   =  None       #if you only want a given class number
+    desire_class_field = 'prereq'    #if you only want a given field
+    begin_from_short = 'ENCH'
+    do_print=begin_from_short == None
+#    desire_terms = ['One of','ONE of','1 of','one of','one from','one from','ONE from','1 from']
+    desire_terms = ['Two of','TWO of','2 of','two of','two from','Two from','TWO from','2 from']
+    desire_terms+= ['Three of','THREE of','3 of','three of','three from','Three from','THREE from','3 from']
+    desire_terms+= ['Four of','FOUR of','4 of','four of','four from','Four from','FOUR from','4 from']
+    desire_terms=None
+
+    
+    print('pretty printing classes...')
+    if begin_from_short is not None:
+        print('skipping print until '+begin_from_short)
+    for key in sorted(found.keys()):
+        do_print = do_print or begin_from_short.upper() == key.upper()
+        if do_print:
+            if desire_class_short is None or desire_class_short == key:  
+                for ID in found[key].IDS:
+                    if desire_class_num is None or desire_class_num == int(ID[:3]):
+                        printed=False
+                        for field in found[key].IDS[ID].fields:
+                            if desire_class_field is not None:
+                                if field == desire_class_field and (desire_terms==None or [x for x in desire_terms if x in getattr(found[key].IDS[ID],field)]):
+                                    printed=True
                                     print(getattr(found[key].IDS[ID],'short'),getattr(found[key].IDS[ID],'num'),getattr(found[key].IDS[ID],'name'))
                                     print('\t'+field)
                                     if field == 'details':
@@ -608,6 +755,8 @@ def pretty_print_fields(found):
                                                 s = s + word + ' ' 
                                         s=s+'\n\n'
                                         print(s)
+                                        if field in ['antireq','coreq','prereq']:
+                                            bool_parser(key+' '+ID,getattr(found[key].IDS[ID],field))
                             else:
                                 if field != 'raw':
                                     printed=True
@@ -616,6 +765,8 @@ def pretty_print_fields(found):
                                         pretty_print_details(getattr(found[key].IDS[ID],field),'\t\t')
                                     else:
                                         print('\t\t',getattr(found[key].IDS[ID],field))
+                                        if field in ['antireq','coreq','prereq']:
+                                            bool_parser(key+' '+ID,getattr(found[key].IDS[ID],field))
                         if printed:
                             print('\n\npress enter for next class...')
                             input('you can safely use crl-c to exit immediately as well\n\n')

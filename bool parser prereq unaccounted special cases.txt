@@ -1,0 +1,77 @@
+special case classes unsure how to handle
+ANTH505 prereq
+    ANTH311 AND ( ONE SENIOR primatology ) AND CONSENT THIS_DEPT
+        means one course of the primatology type, such as "ANTH413 - Method in Primatology" ?
+  
+ arky453
+    3 units from Archaeology 201, Geography 211, 310, Geology 201, 209.
+    3_UNITS_IN  ARKY201, GEOG211, GEOG310, GLGY201, GLGY209.
+    
+asha321
+    Arts and Science Honours Academy 220 and admission to the Arts and Science Honours Academy.
+    ASHA220 AND ADMISSION ASHA.
+    
+    unsure if should keep short or catch the admiddion/consent short and replace the short with full name at the end of the passes.
+
+BMEN501
+    Fourth- or fifth-year standing in the Engineering program of choice. 
+    
+BSEN533
+    XOR is not properly functional
+    
+chem211  
+    grade of 80 per cent
+    
+chem371
+    	Chemistry 201 or 211; and 203 or 213; Physics 223 or admission to a Major program offered by the Department of Physics and Astronomy and 6 units of Physics; and Mathematics 267 or 277. 
+        brute forced the "program offered by the " replacement in step 9.
+        
+chin461
+    Chinese 303 or higher (excluding Chinese 317 and Chinese 355).
+        currently strips out parenthesis, so it would accept 317 or 355...
+        does not handle 'or higher'
+    CHIN303 OR higher .
+    
+DNCE209, DNCE307
+    Dance 207. Audition required if Dance 207 was not completed in the previous term. 
+    DNCE207. AUDITION required if DNCE207 was not completed previous term.
+    not sure how to handle the 'not completed' statement
+
+DNCE465
+    9 units in Dance and/or Psychology. 
+    and/or?  devolve to OR?
+    
+DRAM513
+    Drama 511 or 419 or both 346 and 573, successful application and consent of the Division Chair, Drama.
+    DRAM511 OR DRAM419 OR both 346 AND DRAM573 AND successful application AND CONSENT DIVISION_CHAIR DRAM.
+        successful application ?, eliminate?
+            devolve to just APPLICATION?
+
+DRAM564
+    Drama 360 or 362 or both 365 and 367; and admission to the Drama or Drama Education program. 
+    ( DRAM360 OR DRAM362 OR both 365 AND DRAM367 ) AND ( ADMISSION DRAM OR DRAM EDUC program ).
+    or both fucks it up., eliminate both?
+    
+ECOL501
+    parsing failure
+    Ecology 425, 429 and one of 417 or 419; and 75 units. 
+    ( ECOL425 AND ECOL429 AND (ANY_1 417, ECOL419 ) AND ( 75_UNITS  ).
+        didn't catch ECOL417
+       
+ECOL527
+    Biology 313 and one of Ecology 417 or Zoology 403 or 477.02. 
+    BIOL313 AND (ANY_1 ECOL417, ZOOL403, ZOOL477). 02).
+    mishandles 477.02
+        don't look for ., look for '. ' or .EOL to avoid that
+
+ECON209
+    Registration in the Faculty of Engineering with second-year standing or higher. If not registered in the Schulich School of Engineering, consent of the Department of Economics. 
+    If required for APEGA, consent of the Schulich Undergraduate Studies Office. 
+    
+    Registration THIS_FACULTY ENGG with second-year standing OR higher. If not registered CONSENT THIS_DEPT ECON 
+    If required for CONSENT Schulich UNDERGRAD Studies  SCHULICH_SCHOOL_OF_ENGINEERING, APEGA, Office.
+    
+    lots wrong here.  It entered list mode with APEGA, can't handle n-year standing, registration, wrongly reworked Schulich Undergraduate Studies Office twice
+        maybe just special case it because its so long and fucked up?
+        
+
