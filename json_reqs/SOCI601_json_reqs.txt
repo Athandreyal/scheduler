@@ -1,0 +1,1 @@
+SOCI601 : Consult THIS_DEPT for assignment THIS_FACULTY member.

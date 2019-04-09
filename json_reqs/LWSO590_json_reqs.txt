@@ -1,0 +1,1 @@
+LWSO590 : ( 3_UNITS_IN  list Research Methods Courses within Courses Constituting Field LAW AND Society ) AND ( ADMISSION LWSO Honours program ) AND ( CONSENT THIS_DEPT ).

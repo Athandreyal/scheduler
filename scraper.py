@@ -597,8 +597,9 @@ def bool_parser(ID,s):
     #special case program names know previouusly found
     dept_names+=['Master of Management Program','Program Co-ordinator','School of Languages, Linguistics, Literatures and Cultures','Anthropology Honours Program','Archaeology BSc Honours program']
     s = parse.steps(s, name_to_short, dept_names)
-    print('')
-    print(s)
+#    print('')
+#    print(s)
+    return s
 
 def bool_parser_old(ID,s):
     #A and B; or C
@@ -661,6 +662,8 @@ def get_everything():
 #    not_found = [x for x in departments.keys() if x not in faculties.keys()]
 
     found = joinDepartmentsFaculties(departments, faculties)
+    write_prereqs_to_json_files(found)
+                                        
     
 #    found = {}
 #    #join data from departments and faculties
@@ -673,7 +676,28 @@ def get_everything():
 #                    print(found[key].IDS[ID].details)
 #                    input(513)
 #    pretty_print_classes(found)
-    pretty_print_fields(found)
+#    pretty_print_fields(found)
+
+def write_prereqs_to_json_files(data):
+    print('writing prereq json')
+    if not os.path.exists('json_reqs'):
+        os.makedirs('json_reqs')
+
+    group=0
+    with open('json_reqs.txt','w') as allInOne:
+        for short in data.keys():
+            for ID in data[short].IDS:
+                if hasattr(data[short].IDS[ID],'prereq'):
+                    s = short+ID+' : '+bool_parser(short+' '+ID,getattr(data[short].IDS[ID],'prereq'))
+                    allInOne.write(s+'\n')
+                    with open('json_reqs/' + short+ID+'_json_reqs.txt','w') as oneOnly:
+                        oneOnly.write(s+'\n')
+                else:
+                    s = short+ID+' : NONE'
+                    allInOne.write(s+'\n')
+                    with open('json_reqs/' + short+ID+'_json_reqs.txt','w') as oneOnly:
+                        oneOnly.write(s+'\n')
+                    
 
 def pretty_print_fields2(found):
     desire_class_short = None     #if you only want to see a given short

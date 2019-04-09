@@ -1,0 +1,1 @@
+CHEM211 : ( GRADE_80 UPG101 ), MATH2, ).

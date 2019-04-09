@@ -1,0 +1,1 @@
+PHYS221 : ( ( GRADE_70 UPG101 ) OR a grade "B-" OR 70 per cent OR better MATH2 ).

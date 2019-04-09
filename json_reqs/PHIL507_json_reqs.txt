@@ -1,0 +1,1 @@
+PHIL507 : Two previous courses PHIL at least (ANY_1 which, must, be, a, course, in, the, HTST, of, PHIL, ) AND at least (ANY_1 which, must, be, at, the, 400, level).

@@ -119,8 +119,8 @@ def step2(s):
 
 #substitute '([cC]onsent of [the|]|[aA]dmission to [the|])' with CONSENT or ADMISSION respectively
 def step3(s):
-    pattern0=re.compile('((^| )(C|c)onsent (of )?(the )?)',re.IGNORECASE)
-    pattern1=re.compile('((^| )(A|a)dmission (to |into)?(the |a )?)',re.IGNORECASE)
+    pattern0=re.compile('((^| )consent (of )?(the )?)',re.IGNORECASE)
+    pattern1=re.compile('((^| )admission (to |into)?(the |a )?)',re.IGNORECASE)
     pattern2=re.compile('((to |in |of )?(the )?department)( |\.|,|;)+',re.IGNORECASE)
     pattern3=re.compile('((to |in |of )?(the )?faculty)( |\.|,|;)+',re.IGNORECASE)
     pattern4=re.compile('((to |in |of )?(the )?director)( |\.|,|;)+',re.IGNORECASE)
@@ -410,7 +410,7 @@ def step11(s):
         s = pattern1.sub(' '+match1.group('name')+' '+match1.group('m').upper()+' ',s) 
 #        print('L357',s)
     if match2:
-        print(match2)
+#        print(match2)
         s = pattern2.sub(' '+match2.group('name')+' '+match2.group('m').upper()+' ',s) 
 #        print('L360',s)
 #    print('L361',s)
@@ -454,7 +454,7 @@ def steps(s, n_to_s, depts):
         return s
     name_to_short = n_to_s
     dept=depts
-    debug=True
+    debug=False
     #loop steps through easch of the 'step' functions, calls it with s, and increments the integer for the next step
     func=1
     while 'step'+str(func) in globals():
